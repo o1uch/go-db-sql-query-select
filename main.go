@@ -1,7 +1,9 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -21,7 +23,45 @@ func (s Sale) String() string {
 func selectSales(client int) ([]Sale, error) {
 	var sales []Sale
 
-	// напишите код здесь
+	db, err := sql.Open("sqlite", "demo.db")
+
+	if err != nil {
+		return nil, fmt.Errorf("DB connection error: %v", err)
+	}
+
+	if err = db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to connect to the database: %v", err)
+	}
+
+	defer func() {
+		if db != nil {
+			_ = db.Close()
+		}
+	}()
+
+	db.SetMaxIdleConns(3)
+	db.SetMaxOpenConns(7)
+	db.SetConnMaxIdleTime(3 * time.Minute)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	rows, err := db.Query("select product, volume, date from sales where client = :client_id", sql.Named("client_id", client))
+
+	if err != nil {
+		return nil, fmt.Errorf("request execution error: %v", err)
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var sale Sale
+		rows.Scan(&sale.Product, &sale.Volume, &sale.Date)
+
+		sales = append(sales, sale)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("errors in reading results: %v", err)
+	}
 
 	return sales, nil
 }
